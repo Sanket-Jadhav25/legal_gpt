@@ -2,3 +2,8 @@ nyaya-env/
 __pycache__/
 .ipynb_checkpoints/
 .env
+nyaya-env/
+__pycache__/
+.ipynb_checkpoints/
+.env
+legal_gpt_venv/
