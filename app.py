@@ -9,19 +9,22 @@ from pdf_loader import load_and_split_pdfs
 
 # Load environment variables
 load_dotenv()
-MODEL_PATH = os.getenv("LLM_MODEL_PATH")
+LLAMA_MODEL_PATH = os.getenv("LLAMA_MODEL_PATH")
+DEEPSEEK_MODEL_PATH = os.getenv("DEEPSEEK_MODEL_PATH")
+MISTRAL_MODEL_PATH = os.getenv("MISTRAL_MODEL_PATH")
+
 
 # Directories
 OLD_PDF_DIR = "old_pdfs"
 NEW_PDF_DIR = "new_pdfs"
 CHROMA_DB_DIR = "chroma_db"
 
-# Define system prompt
+# System prompt
 SYSTEM_PROMPT = """<|system|>
 You are a helpful and intelligent legal assistant and have access to number of court cases. You would be provided some links to the court cases you need to identify the court cases accurately and then answer the questions.
 """
 
-# Format prompt for LlamaCpp
+# Prompt formatter
 def format_prompt(query: str, context: str) -> str:
     return f"""{SYSTEM_PROMPT}
 <|user|>
@@ -30,7 +33,16 @@ def format_prompt(query: str, context: str) -> str:
 <|assistant|>
 """
 
-# Initialize the model
+# Model selection in Streamlit
+st.title("📜 Court Case Q&A Assistant")
+model_choice = st.selectbox("🧠 Select LLM Model", ["LLaMA", "DeepSeek", "Mistral"])
+model_paths = {
+    "LLaMA": LLAMA_MODEL_PATH,
+    "DeepSeek": DEEPSEEK_MODEL_PATH,
+    "Mistral": MISTRAL_MODEL_PATH
+}
+MODEL_PATH = model_paths[model_choice]
+# Initialize the LLM
 llm = LlamaCpp(
     model_path=MODEL_PATH,
     n_ctx=2048,
@@ -42,11 +54,11 @@ llm = LlamaCpp(
     verbose=False
 )
 
-# Load embedding model and vector DB
+# Embeddings and Chroma vector store
 embedding = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 vectordb = Chroma(persist_directory=CHROMA_DB_DIR, embedding_function=embedding)
 
-# Function to update Chroma DB with new PDFs
+# Update Chroma DB with new PDFs
 def update_chroma_if_new_pdfs():
     new_files = [f for f in os.listdir(NEW_PDF_DIR) if f.endswith(".pdf")]
     if not new_files:
@@ -62,20 +74,18 @@ def update_chroma_if_new_pdfs():
 
     st.success("✅ Chroma DB updated and new PDFs moved to old_pdfs/")
 
-# 🔁 Update at app startup
+# 🔁 Initial update at app startup
 update_chroma_if_new_pdfs()
 
-# Answer generation function
+# Answer generation
 def get_answer(query: str) -> str:
-    update_chroma_if_new_pdfs()  # Check for new PDFs before answering
+    update_chroma_if_new_pdfs()  # Check for updates before each query
     docs = vectordb.similarity_search(query, k=3)
     context = "\n\n".join([doc.page_content for doc in docs])
     prompt = format_prompt(query, context)
-    response = llm(prompt)
-    return response.strip()
+    return llm(prompt).strip()
 
-# Streamlit UI
-st.title("📜 Court Case Q&A Assistant")
+# Streamlit input
 query = st.text_input("Ask your legal question:")
 
 if query:
